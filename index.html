@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FuelMaster Station</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="densityData.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+</head>
+<body>
+
+    <div id="custom-alert" class="custom-alert-overlay">
+        <div class="custom-alert-box">
+            <div style="margin-bottom:15px; color:var(--primary);"><i data-lucide="info" width="48" height="48"></i></div>
+            <h3 id="alert-title">Notice</h3>
+            <p id="alert-msg">Message goes here</p>
+            <button class="custom-alert-btn" onclick="closeCustomAlert()">OK</button>
+        </div>
+    </div>
+
+    <div id="login-panel" class="login-wrapper">
+        <div class="login-card animate__animated animate__fadeInUp">
+            <div class="brand-header">
+                <div class="brand-lockup large centered">
+                    <i data-lucide="droplet" class="brand-icon"></i>
+                    <div class="brand-text">
+                        <span class="txt-fm">FUEL</span>
+                        <span class="txt-admin" style="color:var(--primary)">MASTER</span>
+                    </div>
+                </div>
+                <p>Station Manager Access</p>
+            </div>
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <label>Manager ID</label>
+                    <input type="tel" id="login-user" placeholder="e.g. 9875345863" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="login-pass" placeholder="••••" required autocomplete="current-password">
+                        <button type="button" class="toggle-pass-btn" id="btnTogglePass">
+                            <i data-lucide="eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="remember-row">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="rememberMe">
+                        <span class="checkmark"></span>
+                        <span class="label-text">Remember Me</span>
+                    </label>
+                </div>
+                <button type="submit" id="btnLogin" class="primary-btn full-width">
+                    <span>Connect Station</span>
+                    <i data-lucide="arrow-right"></i>
+                </button>
+            </form>
+            <p class="login-footer">System v3.8 | Auto Sync</p>
+            <p id="login-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <div id="app-screen" class="app-layout" style="display: none;">
+        
+        <header class="mobile-header">
+            <div class="header-brand" id="btnHome" onclick="switchView('home')">
+                <i data-lucide="fuel" style="color:var(--primary)"></i>
+                <span class="brand-mini">FUEL<b>MASTER</b></span>
+            </div>
+            <div class="header-actions">
+                <button id="btnStaff" class="menu-btn"><i data-lucide="users"></i></button>
+                <button id="btnHeaderLogout" class="menu-btn"><i data-lucide="log-out"></i></button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            
+            <section id="view-home" class="view-section active">
+                <div class="system-status-card">
+                    <div class="status-header">
+                        <div class="live-indicator">
+                            <span id="system-pulse" class="pulse-dot"></span>
+                            <span id="system-text" class="status-text">SYSTEM LIVE</span>
+                        </div>
+                        <button class="icon-btn-refresh" id="btnRefreshConn"><i data-lucide="refresh-cw"></i></button>
+                    </div>
+                    <div id="system-details" class="status-details">
+                        <small>Initializing...</small>
+                    </div>
+                </div>
+
+                <div class="welcome-card animate__animated animate__fadeIn">
+                    <div class="welcome-text">
+                        <span class="sub-welcome">Station Dashboard</span>
+                        <h2 id="display-station-name">Loading...</h2>
+                        <div id="station-tank-summary" class="tank-summary-text"></div>
+                    </div>
+                    <i data-lucide="activity" class="welcome-icon"></i>
+                </div>
+
+                <div class="nav-grid">
+                    <button class="nav-card" onclick="switchView('density')">
+                        <div class="icon-box blue"><i data-lucide="thermometer"></i></div>
+                        <span>Density</span>
+                    </button>
+                    <button class="nav-card" onclick="switchView('tank')">
+                        <div class="icon-box orange"><i data-lucide="cylinder"></i></div>
+                        <span>Stocks</span>
+                    </button>
+                    <button class="nav-card" onclick="switchView('invoice')">
+                        <div class="icon-box green"><i data-lucide="file-check"></i></div>
+                        <span>Audit</span>
+                    </button>
+                </div>
+
+                <div class="info-card">
+                    <h3><i data-lucide="info" class="icon-sm"></i> Audit Info</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">
+                        The Audit tool compares tanker density against the standard ASTM 53B table to ensure fuel quality before unloading.
+                    </p>
+                </div>
+
+                <footer class="app-footer">
+                    <p>Made with <span class="heart">♥</span> by <strong>Velocity6097</strong></p>
+                    <img src="logo.png" alt="Velocity Logo" class="footer-logo" onerror="this.style.display='none'">
+                </footer>
+            </section>
+
+            <section id="view-density" class="view-section hidden">
+                <div class="section-nav">
+                    <button class="back-btn" onclick="switchView('home')"><i data-lucide="arrow-left"></i></button>
+                    <h3>Density Calculator</h3>
+                </div>
+                <div class="content-card">
+                    <div class="input-group">
+                        <label>Observed Density</label>
+                        <input type="number" id="inpDen" placeholder="e.g. 745" inputmode="decimal">
+                    </div>
+                    <div class="input-group">
+                        <label>Temperature (°C)</label>
+                        <input type="number" id="inpTemp" placeholder="e.g. 29.5" inputmode="decimal" step="0.5">
+                    </div>
+                    
+                    <div class="grid-2">
+                        <button id="btnResetDensity" class="secondary-btn full-width">Reset</button>
+                        <button id="btnCalcDensity" class="primary-btn full-width">Calculate</button>
+                    </div>
+                    <div id="density-result" class="result-box hidden">
+                        <div>
+                            <span class="label">Density @ 15°C</span>
+                            <span class="value" id="resDensity">--</span>
+                        </div>
+                        <i data-lucide="check-circle" style="color:var(--primary)"></i>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-tank" class="view-section hidden">
+                <div class="section-nav">
+                    <button class="back-btn" onclick="switchView('home')"><i data-lucide="arrow-left"></i></button>
+                    <h3>Tank Stocks</h3>
+                </div>
+                <div id="tank-selector-wrapper" class="scroll-wrapper"></div>
+                <div class="content-card" style="margin-top:10px;">
+                    <div class="card-head"><h3 id="active-tank-label">Select Tank</h3></div>
+                    <div class="input-group">
+                        <label>Dip Reading (cm)</label>
+                        <input type="number" id="inpDip" placeholder="e.g. 150.5" inputmode="decimal">
+                    </div>
+                    <div class="grid-2">
+                        <button id="btnResetStock" class="secondary-btn full-width">Reset</button>
+                        <button id="btnCalcVolume" class="primary-btn full-width">Calculate</button>
+                    </div>
+                    <div id="volume-result" class="volume-display hidden theme-box">
+                        <div class="vol-content">
+                            <span class="label">Current Stock</span>
+                            <span id="resVolume" class="val">0</span>
+                            <small>Liters</small>
+                        </div>
+                        <i data-lucide="droplet" class="vol-icon"></i>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-invoice" class="view-section hidden">
+                <div class="section-nav">
+                    <button class="back-btn" onclick="switchView('home')"><i data-lucide="arrow-left"></i></button>
+                    <h3>Invoice Audit</h3>
+                </div>
+                <div class="content-card">
+                    <div class="input-group">
+                        <label>Tanker Observed Density</label>
+                        <input type="number" id="tkrObsDensity" placeholder="e.g. 745" inputmode="decimal">
+                    </div>
+                    <div class="input-group">
+                        <label>Tanker Temperature</label>
+                        <input type="number" id="tkrTemp" placeholder="e.g. 29.5" inputmode="decimal">
+                    </div>
+                    <div class="input-group">
+                        <label>Invoice Density (Challan)</label>
+                        <input type="number" id="challanDensity" placeholder="e.g. 756.2" inputmode="decimal">
+                    </div>
+                    <div class="grid-2">
+                        <button id="btnResetInvoice" class="secondary-btn full-width">Reset</button>
+                        <button id="btnCalcInvoice" class="primary-btn full-width">Verify Invoice</button>
+                    </div>
+                    <div id="resInvoice" style="margin-top:20px;"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="staff-modal" class="modal-overlay">
+        <div class="modal-card small animate__animated animate__zoomIn">
+            <div class="modal-head">
+                <h3>Station Staff</h3>
+                <button id="btnCloseStaff" class="close-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="add-staff-form">
+                    <input type="text" id="newStaffName" placeholder="Name">
+                    <input type="tel" id="newStaffPhone" placeholder="Phone (Login ID)">
+                    <input type="tel" id="newStaffPin" placeholder="PIN" maxlength="4">
+                    <button id="btnAddStaff" class="primary-btn compact">Add</button>
+                </div>
+                <div id="staff-list" class="staff-list"></div>
+            </div>
+            <div class="modal-foot" style="padding:10px;"></div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
