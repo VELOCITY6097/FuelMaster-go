@@ -1,3 +1,12 @@
+// --- PWA SERVICE WORKER REGISTRATION ---
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker Registered'))
+            .catch(err => console.log('Service Worker Failed', err));
+    });
+}
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { StaffManager } from "./staff.js";
 
@@ -558,4 +567,5 @@ window.testConnections = async () => {
     }
     
     if(window.lucide) lucide.createIcons();
+
 };
