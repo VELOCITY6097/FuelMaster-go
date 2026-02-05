@@ -3,6 +3,8 @@
  * Handles Maintenance Mode and Interactive Broadcast Banners
  */
 
+let wasSystemLocked = false; // Track previous state
+
 export async function initBroadcast(supabase) {
     console.log("📡 Broadcast System: Online");
 
@@ -20,8 +22,11 @@ export async function initBroadcast(supabase) {
 
 function applySystemState(settings) {
     // 1. Kill Switch
-    if (settings.downtime_active) triggerMaintenanceLock();
-    else liftMaintenanceLock();
+    if (settings.downtime_active) {
+        triggerMaintenanceLock();
+    } else {
+        liftMaintenanceLock();
+    }
 
     // 2. Broadcast Ribbon
     if (settings.broadcast_msg && settings.broadcast_msg.trim() !== "") {
@@ -33,15 +38,13 @@ function applySystemState(settings) {
 
 /* --- BANNER LOGIC --- */
 function showBroadcastBanner(msg, type) {
-    hideBroadcastBanner(); // Clean up old
+    hideBroadcastBanner(); 
 
     let banner = document.createElement('div');
     banner.id = 'global-broadcast-banner';
     banner.className = `broadcast-banner ${type}`;
     
-    // Add Click Event for Popup
     banner.onclick = (e) => {
-        // Don't open if clicking the close button
         if(e.target.closest('.broadcast-close')) return;
         openBroadcastPopup(msg, type);
     };
@@ -53,14 +56,12 @@ function showBroadcastBanner(msg, type) {
         <div class="broadcast-icon-box">
             <i data-lucide="${iconName}" width="20"></i>
         </div>
-        
         <div class="broadcast-marquee">
             <span class="broadcast-text">
                 ${msg} <span class="click-hint">Click for details</span> &nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp; 
                 ${msg} <span class="click-hint">Click for details</span>
             </span>
         </div>
-
         <button class="broadcast-close" onclick="this.closest('.broadcast-banner').remove()">
             <i data-lucide="x" width="20"></i>
         </button>
@@ -78,9 +79,7 @@ function hideBroadcastBanner() {
     if (banner) banner.remove();
 }
 
-/* --- POPUP LOGIC --- */
 function openBroadcastPopup(msg, type) {
-    // Create Popup Overlay if not exists
     let overlay = document.getElementById('broadcast-popup-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -100,38 +99,66 @@ function openBroadcastPopup(msg, type) {
                     <i data-lucide="x" width="24"></i>
                 </button>
             </div>
-            <div class="broadcast-popup-body">
-                ${msg}
-            </div>
+            <div class="broadcast-popup-body">${msg}</div>
             <div class="broadcast-popup-footer">
                 <button class="primary-btn" onclick="document.getElementById('broadcast-popup-overlay').style.display='none'" style="padding:10px 20px;">Dismiss</button>
             </div>
         </div>
     `;
-
     overlay.style.display = 'flex';
     if(window.lucide) lucide.createIcons();
 }
 
-/* --- LOCK LOGIC --- */
+/* --- MAINTENANCE LOCK LOGIC (UPDATED) --- */
 function triggerMaintenanceLock() {
+    wasSystemLocked = true; // Mark as locked
+
+    // Force Logout
     localStorage.removeItem('fm_station_id');
     localStorage.removeItem('fm_user_role');
     
+    // UI Switch to Login
     const loginPanel = document.getElementById('login-panel');
     const appScreen = document.getElementById('app-screen');
-    if(loginPanel) { appScreen.style.display = 'none'; loginPanel.style.display = 'flex'; document.getElementById('loginForm').reset(); }
+    if (appScreen) appScreen.style.display = 'none';
+    if (loginPanel) {
+        loginPanel.style.display = 'flex'; 
+        const form = document.getElementById('loginForm');
+        if(form) form.reset();
+    }
 
+    // Show Premium Overlay
     if (!document.getElementById('maintenance-overlay')) {
         let lock = document.createElement('div');
         lock.id = 'maintenance-overlay';
-        lock.innerHTML = `<div class="lock-card"><h2 style="color:#ef4444">System Maintenance</h2><p>Locked by Administrator.</p><div class="loader-bar"></div></div>`;
+        lock.innerHTML = `
+            <div class="lock-card">
+                <div class="lock-icon-circle">
+                    <i data-lucide="lock" width="32" height="32"></i>
+                </div>
+                <h2>System Maintenance</h2>
+                <p>The station has been temporarily locked by the administrator for scheduled updates.</p>
+                <div class="loader-track">
+                    <div class="loader-bar"></div>
+                </div>
+                <div style="margin-top:15px; font-size:0.75rem; color:#94a3b8; font-weight:600; text-transform:uppercase;">
+                    Update in Progress
+                </div>
+            </div>
+        `;
         document.body.appendChild(lock);
+        if(window.lucide) lucide.createIcons();
     }
     document.body.classList.add('locked-mode');
 }
 
 function liftMaintenanceLock() {
+    // If we were previously locked, FORCE RELOAD to ensure clean logout state
+    if (wasSystemLocked) {
+        window.location.reload();
+        return;
+    }
+
     const lock = document.getElementById('maintenance-overlay');
     if (lock) lock.remove();
     document.body.classList.remove('locked-mode');

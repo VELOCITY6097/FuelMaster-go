@@ -9,7 +9,7 @@ if ('serviceWorker' in navigator) {
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { StaffManager } from "./staff.js";
-import { initBroadcast } from "./broadcast.js"; // <--- ADDED IMPORT
+import { initBroadcast } from "./broadcast.js";
 
 // --- CONFIGURATION ---
 const SUPABASE_URL = 'https://hmfuxypluzozbwoleqnn.supabase.co';
@@ -51,6 +51,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rememberMe').checked = true;
     }
 });
+
+// --- HELPER: HIDE LOADER ---
+function hideLoader() {
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => { loader.style.display = 'none'; }, 500);
+    }
+}
 
 // --- CUSTOM ALERT & TOAST UTILS ---
 window.showCustomAlert = (msg, title = "Notice", onConfirm = null) => {
@@ -198,6 +207,7 @@ async function checkSession() {
 }
 
 function showLogin() {
+    hideLoader(); // <--- CRITICAL FIX: Hide loader when showing login
     document.getElementById('login-panel').style.display = 'flex';
     document.getElementById('app-screen').style.display = 'none';
 }
@@ -265,11 +275,11 @@ async function initApp(stationData) {
     currentStation = stationData;
     staffManager.setStationId(stationData.station_id);
 
-    // --- NEW: Initialize Broadcast Listener ---
-    initBroadcast(supabase); // <--- THIS LINE IS CRITICAL
-    // ------------------------------------------
+    initBroadcast(supabase); 
 
     await loadSystemAssets();
+
+    hideLoader(); // <--- CRITICAL FIX: Hide loader when app is ready
 
     document.getElementById('login-panel').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
@@ -427,10 +437,25 @@ async function calculateVolumeFromChart() {
     const chart = systemCharts[chartKey];
     
     if (!chart) {
+        // Fallback for smart chart parsing
+        const altKey = currentTank.type;
+        const altChart = systemCharts[altKey];
+        
+        if (altChart) {
+             // Found it under alternative key
+             // Proceed using altChart
+             const dips = Object.keys(altChart).map(Number).sort((a, b) => a - b);
+             // ... logic same as below ...
+             return doCalculation(altChart, dipInput, resContainer);
+        }
         return showCustomAlert(`Chart data missing for ${currentTank.type}`);
     }
+    
+    doCalculation(chart, dipInput, resContainer);
+}
 
-    // RANGE CHECK LOGIC
+// Helper to avoid duplicate code
+async function doCalculation(chart, dipInput, resContainer) {
     const dips = Object.keys(chart).map(Number).sort((a, b) => a - b);
     const minDip = dips[0];
     const maxDip = dips[dips.length - 1];
