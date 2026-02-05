@@ -9,6 +9,7 @@ if ('serviceWorker' in navigator) {
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { StaffManager } from "./staff.js";
+import { initBroadcast } from "./broadcast.js"; // <--- ADDED IMPORT
 
 // --- CONFIGURATION ---
 const SUPABASE_URL = 'https://hmfuxypluzozbwoleqnn.supabase.co';
@@ -153,13 +154,8 @@ function bindEvents() {
         document.getElementById('inpDip').value = '';
         const volRes = document.getElementById('volume-result');
         volRes.classList.add('hidden');
-        volRes.innerHTML = `
-            <div>
-                <span class="label">Current Stock</span>
-                <span id="resVolume" class="val">0</span>
-                <small>Liters</small>
-            </div>
-        `;
+        // Reset HTML structure for initial state
+        volRes.innerHTML = ''; 
     });
 
     // Invoice Audit
@@ -268,6 +264,10 @@ async function handleLogin(e) {
 async function initApp(stationData) {
     currentStation = stationData;
     staffManager.setStationId(stationData.station_id);
+
+    // --- NEW: Initialize Broadcast Listener ---
+    initBroadcast(supabase); // <--- THIS LINE IS CRITICAL
+    // ------------------------------------------
 
     await loadSystemAssets();
 
