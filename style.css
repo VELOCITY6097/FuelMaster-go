@@ -37,6 +37,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 
+/* 1. APPLY TO BODY (Blocks selection everywhere) */
 body { 
     background: var(--bg-body); 
     color: var(--text-main); 
@@ -47,6 +48,22 @@ body {
         radial-gradient(circle at 100% 0%, var(--surface) 0%, transparent 40%);
     background-attachment: fixed;
     transition: background 0.5s ease;
+
+    /* --- DISABLE TEXT SELECTION GLOBALLY --- */
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE10+/Edge */
+    user-select: none;         /* Standard */
+    -webkit-tap-highlight-color: transparent; /* Removes blue tap box on Android */
+}
+
+/* 2. RE-ENABLE FOR INPUTS (Critical: allows typing/editing) */
+input, textarea {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+    cursor: text;
 }
 
 /* === UTILS === */
@@ -562,7 +579,6 @@ button { font-family: inherit; }
     from { transform: scale(0); opacity: 0; } 
     to { transform: scale(1); opacity: 1; } 
 }
-
 /* =========================================
    FIX: TOAST NOTIFICATION STYLES
    ========================================= */
@@ -591,4 +607,3 @@ button { font-family: inherit; }
     from { top: -50px; opacity: 0; }
     to { top: 20px; opacity: 1; }
 }
-
