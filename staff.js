@@ -89,9 +89,13 @@ export class StaffManager {
     }
 
     async remove(id) {
-        if(!confirm("Remove this staff member?")) return;
-        const { error } = await this.supabase.from('staff').delete().eq('id', id);
-        if (error) alert("Error: " + error.message);
-        else this.loadStaff();
+        window.showCustomAlert("Are you sure you want to remove this staff member?", "Confirm Deletion", async () => {
+            const { error } = await this.supabase.from('staff').delete().eq('id', id);
+            if (error) {
+                window.showCustomAlert("Error: " + error.message, "Error");
+            } else {
+                this.loadStaff();
+            }
+        });
     }
 }
