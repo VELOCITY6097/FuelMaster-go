@@ -10,6 +10,7 @@ if ('serviceWorker' in navigator) {
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { StaffManager } from "./staff.js";
 
+// --- CONFIGURATION ---
 const SUPABASE_URL = 'https://hmfuxypluzozbwoleqnn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_mP-3LuhOE7uXLOV5t4IrBg_WWvUUmmb';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -17,14 +18,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const staffManager = new StaffManager(supabase);
 window.StaffApp = staffManager;
 
+// --- STATE MANAGEMENT ---
 let currentStation = null;
 let currentTank = null;
 let systemCharts = null; 
 let systemDensity = null; 
 let currentUserRole = 'manager'; 
+let systemStatusLive = false;
 
 const getDensityTable = () => systemDensity || window.densityTable; 
 
+// --- THEME DEFINITIONS ---
 const THEMES = {
     'bpcl': { primary: '#fbbf24', text: '#d97706', bg: '#fffbeb' }, 
     'iocl': { primary: '#f97316', text: '#c2410c', bg: '#fff7ed' }, 
@@ -32,10 +36,12 @@ const THEMES = {
     'jio':  { primary: '#10b981', text: '#047857', bg: '#ecfdf5' }  
 };
 
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     checkSession();
     
+    // Auto-fill login if remembered
     const savedId = localStorage.getItem('fm_saved_id');
     const savedPass = localStorage.getItem('fm_saved_pass');
     if (savedId && savedPass) {
@@ -45,23 +51,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- CUSTOM ALERT FUNCTION ---
-window.showCustomAlert = (msg, title = "Notice") => {
+// --- CUSTOM ALERT & TOAST UTILS ---
+window.showCustomAlert = (msg, title = "Notice", onConfirm = null) => {
     const overlay = document.getElementById('custom-alert');
-    if(overlay) {
-        document.getElementById('alert-title').innerText = title;
-        document.getElementById('alert-msg').innerText = msg;
-        overlay.style.display = 'flex';
-    } else {
-        alert(msg); 
+    if(!overlay) {
+        if(onConfirm) {
+            if(confirm(msg)) onConfirm();
+        } else {
+            alert(msg);
+        }
+        return;
     }
+
+    document.getElementById('alert-title').innerText = title;
+    document.getElementById('alert-msg').innerText = msg;
+
+    const okBtn = document.getElementById('custom-alert-ok-btn');
+    const confirmButtons = document.getElementById('custom-confirm-buttons');
+    const confirmBtn = document.getElementById('custom-alert-confirm-btn');
+
+    if (onConfirm) {
+        okBtn.style.display = 'none';
+        confirmButtons.style.display = 'grid';
+
+        confirmBtn.onclick = () => {
+            closeCustomAlert();
+            onConfirm();
+        };
+    } else {
+        okBtn.style.display = 'block';
+        confirmButtons.style.display = 'none';
+    }
+
+    overlay.style.display = 'flex';
 };
 
 window.closeCustomAlert = () => {
     document.getElementById('custom-alert').style.display = 'none';
 };
 
-// --- SYSTEM UPDATE NOTIFICATION ---
 function showUpdateToast(msg = "System Sync Complete") {
     const toast = document.createElement('div');
     toast.className = 'update-toast';
@@ -71,10 +99,12 @@ function showUpdateToast(msg = "System Sync Complete") {
     setTimeout(() => toast.remove(), 3000);
 }
 
+// --- EVENT BINDING ---
 function bindEvents() {
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('btnTogglePass').addEventListener('click', togglePassword);
     
+    // Navigation
     window.switchView = (id) => {
         document.querySelectorAll('.view-section').forEach(el => {
             el.classList.remove('active');
@@ -91,10 +121,11 @@ function bindEvents() {
             }
         }, 50);
 
-        if(id === 'home') testConnections();
+        if(id === 'home' && !systemStatusLive) testConnections();
         if(window.lucide) lucide.createIcons();
     };
 
+    // Staff Modal
     const modal = document.getElementById('staff-modal');
     document.getElementById('btnStaff').addEventListener('click', () => { 
         modal.style.display = 'flex'; 
@@ -103,13 +134,12 @@ function bindEvents() {
     document.getElementById('btnCloseStaff').addEventListener('click', () => modal.style.display = 'none');
     document.getElementById('btnAddStaff').addEventListener('click', () => staffManager.add());
     
-    // Logout Logic
+    // Logout & Refresh
     document.getElementById('btnLogout')?.addEventListener('click', logout);
     document.getElementById('btnHeaderLogout').addEventListener('click', logout);
-    
     document.getElementById('btnRefreshConn').addEventListener('click', testConnections);
 
-    // Density
+    // Density Calculator
     document.getElementById('btnCalcDensity').addEventListener('click', calculateDensityFromTable);
     document.getElementById('btnResetDensity').addEventListener('click', () => {
         document.getElementById('inpTemp').value = '';
@@ -117,16 +147,22 @@ function bindEvents() {
         document.getElementById('density-result').classList.add('hidden');
     });
 
-    // Stock
+    // Stock Calculator
     document.getElementById('btnCalcVolume').addEventListener('click', calculateVolumeFromChart);
     document.getElementById('btnResetStock').addEventListener('click', () => {
         document.getElementById('inpDip').value = '';
         const volRes = document.getElementById('volume-result');
         volRes.classList.add('hidden');
-        document.getElementById('resVolume').innerText = '0'; 
+        volRes.innerHTML = `
+            <div>
+                <span class="label">Current Stock</span>
+                <span id="resVolume" class="val">0</span>
+                <small>Liters</small>
+            </div>
+        `;
     });
 
-    // Audit
+    // Invoice Audit
     document.getElementById('btnCalcInvoice').addEventListener('click', verifyInvoice);
     document.getElementById('btnResetInvoice').addEventListener('click', () => {
         document.getElementById('tkrObsDensity').value = '';
@@ -136,7 +172,7 @@ function bindEvents() {
     });
 }
 
-// --- ASSETS ---
+// --- ASSET LOADING ---
 async function loadSystemAssets() {
     try {
         const { data: chartsData } = await supabase.from('system_assets').select('data').eq('key', 'tank_charts').single();
@@ -147,7 +183,7 @@ async function loadSystemAssets() {
     } catch (err) { console.error(err); }
 }
 
-// --- AUTH ---
+// --- AUTHENTICATION ---
 async function checkSession() {
     const storedStationId = localStorage.getItem('fm_station_id');
     const storedRole = localStorage.getItem('fm_user_role'); 
@@ -228,6 +264,7 @@ async function handleLogin(e) {
     }
 }
 
+// --- APP INITIALIZATION ---
 async function initApp(stationData) {
     currentStation = stationData;
     staffManager.setStationId(stationData.station_id);
@@ -284,30 +321,23 @@ function updateUI(data) {
     }
 }
 
-// --- ENHANCED REALTIME ---
+// --- REALTIME UPDATES ---
 function initRealtime(stationId) {
-    // console.log("Initializing Realtime for Station:", stationId);
     supabase.channel('station-updates')
     .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'stations', filter: `station_id=eq.${stationId}` },
         (payload) => {
-            // console.log("Realtime Update Received:", payload.new);
             currentStation = payload.new;
-            
-            // 1. Update UI Elements (Theme, Text)
             updateUI(currentStation);
-            
-            // 2. Re-render Tanks (Buttons)
             renderTanks(currentStation.tanks);
-            
-            // 3. Notify User
             showUpdateToast("Station Data Updated");
         }
     )
     .subscribe();
 }
 
+// --- HELPER: SIMULATE CALCULATION ---
 async function simulateCalculation(btnId, resultId, duration = 800) {
     const btn = document.getElementById(btnId);
     const res = document.getElementById(resultId);
@@ -327,7 +357,7 @@ async function simulateCalculation(btnId, resultId, duration = 800) {
     setTimeout(() => res.classList.remove('pop-in'), 500);
 }
 
-// --- CALC FUNCTIONS ---
+// --- 1. DENSITY CALCULATOR ---
 async function calculateDensityFromTable() {
     const tempInput = parseFloat(document.getElementById('inpTemp').value);
     const denInput = parseFloat(document.getElementById('inpDen').value);
@@ -350,6 +380,7 @@ async function calculateDensityFromTable() {
     document.getElementById('resDensity').innerText = densityArray[index] + " kg/m³";
 }
 
+// --- 2. TANK RENDERER ---
 function renderTanks(tanks) {
     const container = document.getElementById('tank-selector-wrapper');
     if(!container) return;
@@ -380,22 +411,22 @@ function renderTanks(tanks) {
     if(window.lucide) lucide.createIcons();
 }
 
-// --- FIXED STOCK LOGIC (RANGE CHECK) ---
+// --- 3. STOCK CALCULATOR (UPDATED ICON) ---
 async function calculateVolumeFromChart() {
     const dipInput = parseFloat(document.getElementById('inpDip').value);
     
     if (isNaN(dipInput)) return showCustomAlert("Please enter a valid Dip value.");
     if (!currentTank || !systemCharts) return showCustomAlert("System Loading...");
 
-    // Hide result box first
-    const resEl = document.getElementById('volume-result');
-    resEl.classList.add('hidden');
+    // Hide result box first and clear content
+    const resContainer = document.getElementById('volume-result');
+    resContainer.classList.add('hidden');
+    resContainer.innerHTML = ''; 
 
     const chartKey = `${currentTank.type}_CHART`; 
     const chart = systemCharts[chartKey];
     
     if (!chart) {
-        document.getElementById('resVolume').innerText = '0';
         return showCustomAlert(`Chart data missing for ${currentTank.type}`);
     }
 
@@ -411,8 +442,10 @@ async function calculateVolumeFromChart() {
     await simulateCalculation('btnCalcVolume', 'volume-result');
 
     let finalVol = 0;
-    // Exact Match
-    if (chart[dipInput.toFixed(2)]) {
+    // Exact Match Logic with Interpolation
+    if (chart[dipInput.toFixed(1)]) {
+        finalVol = chart[dipInput.toFixed(1)];
+    } else if (chart[dipInput.toFixed(2)]) {
         finalVol = chart[dipInput.toFixed(2)];
     } else {
         // Interpolation
@@ -424,16 +457,32 @@ async function calculateVolumeFromChart() {
         }
 
         if (lowerDip !== null && upperDip !== null) {
-             const getVol = (v) => chart[v.toFixed(2)] || chart[v.toFixed(1)];
+             const getVol = (v) => chart[v.toFixed(1)] || chart[v.toFixed(2)];
              const lowerVol = getVol(lowerDip);
              const upperVol = getVol(upperDip);
              finalVol = lowerVol + ((upperVol - lowerVol) / (upperDip - lowerDip)) * (dipInput - lowerDip);
         }
     }
     
-    document.getElementById('resVolume').innerText = finalVol.toFixed(2);
+    // RENDER NEW RESULT HTML (THEME BOX)
+    const volString = Math.floor(finalVol).toLocaleString(); 
+    
+    resContainer.innerHTML = `
+        <div class="theme-box pop-in">
+            <div>
+                <span class="label">Current Volume</span>
+                <div class="val">${volString}<small>L</small></div>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-droplet vol-icon">
+                <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path>
+            </svg>
+        </div>
+    `;
+    
+    resContainer.classList.remove('hidden');
 }
 
+// --- 4. INVOICE AUDIT (UPDATED UNSELECTABLE DETAILS) ---
 async function verifyInvoice() {
     const tkrObs = parseFloat(document.getElementById('tkrObsDensity').value);
     const tkrTemp = parseFloat(document.getElementById('tkrTemp').value);
@@ -442,16 +491,19 @@ async function verifyInvoice() {
     if (isNaN(tkrObs) || isNaN(tkrTemp) || isNaN(challan)) return showCustomAlert("Please fill all fields correctly.");
 
     const resBox = document.getElementById('resInvoice');
-    
-    // Centered Loading Spinner
-    resBox.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;">
-            <div class="spinner-mini spinner-result darker"></div>
-            <div style="font-size:0.9rem; margin-top:10px;">Verifying density...</div>
-        </div>
+    resBox.innerHTML = ''; 
+
+    // Loading State
+    const loadingDiv = document.createElement('div');
+    loadingDiv.style.textAlign = 'center';
+    loadingDiv.style.padding = '20px';
+    loadingDiv.innerHTML = `
+        <div class="spinner-mini spinner-result darker"></div>
+        <div style="margin-top:10px; font-size:0.9rem; color:var(--text-muted);">Verifying density...</div>
     `;
+    resBox.appendChild(loadingDiv);
     
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 800));
 
     const table = getDensityTable();
     if (!table) return showCustomAlert("System Loading...");
@@ -459,6 +511,8 @@ async function verifyInvoice() {
     const roundedTemp = (Math.round(tkrTemp * 2) / 2).toFixed(1);
     const arr = table[roundedTemp];
     
+    resBox.innerHTML = ''; // Clear loading
+
     if(!arr) {
         resBox.innerHTML = '<p style="color:red;text-align:center;">Temperature Error</p>';
         return;
@@ -475,26 +529,42 @@ async function verifyInvoice() {
     const diff = (calcStd - challan).toFixed(1);
     const isPass = Math.abs(diff) <= 3.0;
 
-    let warningHTML = '';
-    if (!isPass) {
-        warningHTML = `<div class="warning-box">DO NOT UNLOAD TANKER<br>REDO DENSITY CHECK</div>`;
-    }
+    // Render Detailed Result
+    const statusClass = isPass ? 'pass' : 'fail';
+    const iconName = isPass ? 'check' : 'x';
+    const statusText = isPass ? 'AUDIT PASSED' : 'AUDIT FAILED';
 
-    resBox.innerHTML = `
-        <div class="audit-result ${isPass ? 'pass' : 'fail'} pop-in">
+    const resultHTML = `
+        <div class="audit-result ${statusClass}">
             <div class="audit-icon">
-                <i data-lucide="${isPass ? 'check' : 'x'}"></i>
+                <i data-lucide="${iconName}"></i>
             </div>
-            <h3>${isPass ? 'PASSED' : 'FAILED'}</h3>
-            <p>Calculated Density: <strong>${calcStd}</strong></p>
-            <p>Difference: <strong>${diff}</strong></p>
-            ${warningHTML}
+            <h3>${statusText}</h3>
+            
+            <div style="width:100%; margin-top:10px; border-top:1px solid rgba(0,0,0,0.05); padding-top:10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:0.9rem;">
+                    <span style="opacity:0.7">Calculated Density:</span>
+                    <span style="font-weight:700">${calcStd.toFixed(1)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:0.9rem;">
+                    <span style="opacity:0.7">Invoice Density:</span>
+                    <span style="font-weight:700">${challan.toFixed(1)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                    <span style="opacity:0.7">Difference:</span>
+                    <span style="font-weight:700; color:${Math.abs(diff) > 3 ? 'var(--danger)' : 'var(--text-main)'}">${diff > 0 ? '+' : ''}${diff}</span>
+                </div>
+            </div>
+
+            ${!isPass ? `<div class="warning-box">DO NOT UNLOAD TANKER<br>RECHECK DENSITY</div>` : ''}
         </div>
     `;
 
+    resBox.innerHTML = resultHTML;
     if(window.lucide) lucide.createIcons();
 }
 
+// --- UTILITIES ---
 window.togglePassword = () => {
     const x = document.getElementById('login-pass');
     const btn = document.getElementById('btnTogglePass');
@@ -553,6 +623,7 @@ window.testConnections = async () => {
         textEl.innerText = "SYSTEM ALERT";
         textEl.style.color = "var(--danger)";
         errors.forEach(err => detailsEl.innerHTML += `<div class="error-item"><i data-lucide="alert-circle" width="12"></i> ${err}</div>`);
+        systemStatusLive = false;
     } else {
         pulseEl.className = "pulse-dot green";
         textEl.innerText = "ALL SYSTEMS LIVE";
@@ -564,8 +635,9 @@ window.testConnections = async () => {
             <div class="success-item"><i data-lucide="check" width="12"></i> Admin Panel</div>
             <div class="success-item"><i data-lucide="check" width="12"></i> ${tankCount} Tanks Configured</div>
         `;
+        systemStatusLive = true;
     }
     
     if(window.lucide) lucide.createIcons();
-
+    if(btn) btn.classList.remove('fa-spin');
 };
