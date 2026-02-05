@@ -562,3 +562,33 @@ button { font-family: inherit; }
     from { transform: scale(0); opacity: 0; } 
     to { transform: scale(1); opacity: 1; } 
 }
+
+/* =========================================
+   FIX: TOAST NOTIFICATION STYLES
+   ========================================= */
+
+.update-toast {
+    position: fixed;
+    top: 20px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    background: #3b82f6; /* Blue background */
+    color: white;
+    padding: 10px 20px; 
+    border-radius: 30px;
+    font-size: 0.85rem; 
+    font-weight: 700;
+    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+    z-index: 10000; /* Ensure it sits on top of everything */
+    display: flex; 
+    align-items: center; 
+    gap: 8px;
+    animation: slideDownFade 0.5s ease forwards;
+}
+
+/* Animation for the Toast */
+@keyframes slideDownFade {
+    from { top: -50px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
+}
+
